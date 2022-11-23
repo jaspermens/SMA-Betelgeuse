@@ -10,8 +10,8 @@ Betelgeuse (hereafter nicknamed *beet*) is a nearby star in Orion. Beet is going
 - Jasper Mens (s2015242)
 - Rahul Priyadarshan Ravichandran (s3589943)
 
-Together we are known as *Crazy Coincidence*. Our team logo can be found:\
-![here](https://imgur.com/a/6RaL7Dh)
+Together we are known as *Crazy Coincidence*. Our team logo can be found:
+![here](https://imgur.com/a/6RaL7Dh)\
  We also want to thank Prof. Alex De Koter for his input.
 
 ## Project Specifics
