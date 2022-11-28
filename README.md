@@ -37,6 +37,6 @@ There are plenty of interesting ideas, if we're finished on time we intend to im
 **Week 0:** (Oct. 24 - Oct. 30) Initial Idea, Presentation and Project Proposal\
 **Week 1:** (Oct. 31 - Nov. 6) `beet_test.py` Initializing the problem, scaling the Oort Cloud.\
 **Week 2:** (Nov. 7  - Nov 13) `galactic_potential.py`.\
-**Week 3:** (Nov. 14 - Nov.  20) Meeting with Alex De Koter, bridging between galactic potential and beet system. Creation of this very nice `README`
-
+**Week 3:** (Nov. 14 - Nov. 20) Meeting with Alex De Koter, bridging between galactic potential and beet system. Creation of this very nice `README`
+**Week 4:** (Nov. 21 - Nov. 27) Stopped using `Hermite`, made a custom class for integrating the orbits around beet analytically.
 ```
