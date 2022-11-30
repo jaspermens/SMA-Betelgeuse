@@ -31,6 +31,7 @@ class star:
         self.model_time = 0 | units.yr
         self.timestep = timestep
         self.mdot = mdot
+
         self.stellar = SeBa()
         self.stellar.particles.add_particles(self.particles)
         self.channel_mass = self.stellar.particles.new_channel_to(self.particles)
@@ -58,7 +59,6 @@ class star:
     def update_mass(self):
         self.stellar.evolve_model(self.model_time + self.timestep)
         self.channel_mass.copy()
-        print('beet_mass', self.particles.mass)
 
     def update_pos(self):
         self.particles.x += self.particles.vx * self.timestep
@@ -93,7 +93,7 @@ class test_particles:
             self.model_time += self.timestep
 
 #%% progress bar function
-def bar_x_out_of_y(x, y, text: str) -> None:
+def bar_x_out_of_y(x, y, text: str='') -> None:
     maxbars = 20
     nbars = int(x / y * maxbars)
     print('\rProcessing: | ' + '█' * nbars + '-' * (maxbars - nbars) + ' |', end=' ')
@@ -135,8 +135,7 @@ def detect_pseudo_encounters(cloud, sun, model_time, detections, detection_keys,
 
     
 def run_simulation(end_time=(100|units.Myr), 
-                    timestep_oort=(1e-3|units.Myr), 
-                    timestep_mw=(1e-2|units.Myr),
+                    timestep=(1e-3|units.Myr),
                     n_oort_objects=100,
                     detection_radius=(20|units.pc),
                     do_plot: bool=True):
@@ -144,8 +143,7 @@ def run_simulation(end_time=(100|units.Myr),
     """ Performs a simple test run"""
     
     run_params = {'t_end': end_time, 
-                    'ts_oort': timestep_oort, 
-                    'ts_mw': timestep_mw,
+                    'timestep': timestep,
                     'n_objects': n_oort_objects,
                     'det_rad': detection_radius}
 
@@ -153,7 +151,7 @@ def run_simulation(end_time=(100|units.Myr),
 
     # beet
     beet = Particles(1)
-    beet.mass = 20 | units.MSun
+    beet.mass = 18 | units.MSun
     beet.position = (26660, 0, 0) | units.lightyear
     beet.velocity = (0, 250, 0) | units.kms
     
@@ -165,36 +163,40 @@ def run_simulation(end_time=(100|units.Myr),
 
     # Oort cloud
     beet_cloud = ic.new_isotropic_cloud(number_of_particles=n_oort_objects,
-                            m_star = 18 | units.MSun,
+                            m_star = beet.mass,
                             a_min = 60_000 | units.AU,
                             a_max = 200_000 | units.AU,
+                            q_min = 20_000 | units.AU,
                             seed=4200)
 
     beet_cloud.position += beet.position
     beet_cloud.velocity += beet.velocity
 
     # Make test particles and beet and sun
-    OORT = test_particles(beet_cloud, timestep_oort)
-    BEET = star(beet, timestep_oort)
-    SUN = test_particles(sun, timestep_mw)    
+    OORT = test_particles(beet_cloud, timestep)
+    BEET = star(beet, timestep)
+    SUN = test_particles(sun, timestep)    
 
     # Bridge 'em
     # Bridge Oort and Beet
-    oort_cloud = bridge.Bridge(use_threading=True)
-    oort_cloud.add_system(OORT, (BEET,))
-    oort_cloud.add_system(BEET, (OORT,))
-    oort_cloud.timestep = timestep_oort
-
-    # Bridge Milky Way and Beet System
     MWG = MilkyWay_galaxy()
     milky_way = bridge.Bridge(use_threading=True)
-    milky_way.add_system(oort_cloud, (MWG,) )
+    milky_way.add_system(OORT, (BEET, MWG))
+    milky_way.add_system(BEET, (MWG,))
     milky_way.add_system(SUN, (MWG,))
-    milky_way.timestep = timestep_mw
+    milky_way.timestep = timestep
+
+    # Bridge Milky Way and Beet System
+    # MWG = MilkyWay_galaxy()``
+    # milky_way = bridge.Bridge(use_threading=True)
+    # milky_way.add_system(oort_cloud, (MWG,) )
+    # milky_way.add_system(SUN, (MWG,))
+    # milky_way.timestep = timestep_mw
 
     # Make channel
     channel_out = milky_way.particles.new_channel_to(beet_cloud)
     channel_out_sun = milky_way.particles.new_channel_to(sun)
+    channel_out_beet = milky_way.particles.new_channel_to(beet)
     
     # Do the thing
     model_time = 0 | units.yr
@@ -207,13 +209,13 @@ def run_simulation(end_time=(100|units.Myr),
     while(model_time < end_time):
         # Evolve in milky way timesteps because those should be the largest
         channel_out.copy()
-        model_time += timestep_mw
+        model_time += timestep
         
         # Do the thing.
         milky_way.evolve_model(model_time)
 
         # collision detection
-        detect_pseudo_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
+        detect_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
 
         #  Saving data for future plotting
         if (model_time % plot_interval).value_in(units.Myr) == 0.0:
@@ -245,24 +247,25 @@ def run_simulation(end_time=(100|units.Myr),
     end_time = datetime.now() - start_time
     print(f'Duration: {end_time}')
 
+    if do_plot:
+        pk.dump(plotdata, open('last_run_plotdata.pk', 'wb'))
+        make_plots(plotdata)      
+
     detection_df = pd.DataFrame(detections)
     detection_df.columns = "key", "time", "x", "y", "z", "vx", "vy", "vz"
     print(detection_df)
     pk.dump(detection_df, open('detections.pk', 'wb'))
-
-            
-    if do_plot:
-        pk.dump(plotdata, open('last_run_plotdata.pk', 'wb'))
-        make_plots(plotdata)      
 
 
 def make_plots(plotdata=None):
     import matplotlib.patches as patches
     if not plotdata:
         plotdata = pk.load(open('last_run_plotdata.pk', 'rb'))
-    print(len(plotdata))
+    
     fignum = 0
+    num_plots = len(plotdata)
     for plot_data in plotdata:
+        bar_x_out_of_y(fignum, num_plots)
         tit, beetpos, cloudpos, sunpos = plot_data
         
         colors = ['purple' , 'goldenrod', 'forestgreen', 'steelblue', 'teal']
@@ -273,10 +276,12 @@ def make_plots(plotdata=None):
         ax.scatter(0, 0, c='maroon', zorder=2)
         ax.scatter(beetpos[0],
                     beetpos[1],
-                    c = 'red', zorder=2)
+                    c = 'red', zorder=2,
+                    s=2)
         ax.scatter(sunpos[0],
                     sunpos[1],
-                    c = 'gold', zorder=2)
+                    c = 'gold', zorder=2,
+                    s=2)
         circ = patches.Circle((sunpos[0], sunpos[1]), radius=0.02, transform=ax.transData, fill=False, color='purple', linestyle='--')
         ax.add_patch(circ)
         ax.scatter(cloudpos[0], 
@@ -284,24 +289,34 @@ def make_plots(plotdata=None):
                     c = colors,
                     s = 1
                     )
-        ax.set_xlim(sunpos[0] - 0.1, sunpos[0] + 0.1)
-        ax.set_ylim(sunpos[1] - 0.1, sunpos[1] + 0.1)
-        # plt.grid()
+
+        # For full galaxy
+        # ax.set_xlim(-12, 12)
+        # ax.set_ylim(-12,12)
+
+        # For Sun center
+        # ax.set_xlim(sunpos[0] - 0.4, sunpos[0] + 0.4)
+        # ax.set_ylim(sunpos[1] - 0.4, sunpos[1] + 0.4)
+
+        # For Beet center
+        ax.set_xlim(beetpos[0] - 0.01, beetpos[0] + 0.01)
+        ax.set_ylim(beetpos[1] - 0.01, beetpos[1] + 0.01)
+
         plt.savefig(f'../figures/fig_{fignum:03d}.png')
         plt.close()
         fignum +=1
 
 
+
 def make_movie():
-    command = "ffmpeg -y -framerate 5 -i ../figures/fig_%3d.png -c:v libx264 -vb 20M -pix_fmt yuv420p -filter:v 'setpts=2*PTS' -y ../figures/movie.mp4"
+    command = "ffmpeg -y -framerate 25 -i ../figures/fig_%3d.png -c:v libx264 -vb 20M -pix_fmt yuv420p -filter:v 'setpts=2*PTS' -y ../figures/movie.mp4"
     os.system(command)
 
 
 # %%
 if __name__ in '__main__':
-    run_simulation(end_time=(30|units.Myr), 
-                    timestep_oort=(0.1|units.Myr), 
-                    timestep_mw=(0.1|units.Myr),
-                    n_oort_objects=100)
-    # make_plots()
-    # make_movie()
+    # run_simulation(end_time=(20|units.Myr), 
+    #                 timestep=(0.001|units.Myr),
+    #                 n_oort_objects=50)
+    make_plots()
+    make_movie()
