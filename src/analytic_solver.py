@@ -104,7 +104,24 @@ def detect_encounters(cloud, sun):
             detections.append(particle)
             
     return detections
-            
+
+def prune(main_keys_array, main_initial_pos, main_initial_vel, detection):
+    """
+    gets initial positions and velocities of objects within the detection radius
+    """
+    pruned_pos0 = np.array([])
+    pruned_vel0 = np.array([])
+    for particle in detection:
+        key = particle.key
+        ind = np.where(key, main_keys_array)
+        pos0 = main_initial_pos[ind]
+        pruned_pos0 = np.append(pruned_pos0, pos0)
+        vel0 = main_initial_vel[ind]
+        pruned_vel0 = np.append(pruned_vel0, vel0)
+
+    return pruned_pos0, pruned_vel0
+                
+
     
 def run_simulation(end_time=(100|units.Myr), 
                     timestep_oort=(1e-3|units.Myr), 
@@ -135,6 +152,13 @@ def run_simulation(end_time=(100|units.Myr),
 
     beet_cloud.position += beet.position
     beet_cloud.velocity += beet.velocity
+
+    # initial positions and velocities in separate arrays, later useful for pruning
+    beet_cloud_pos0 = beet_cloud.position
+    beet_cloud_vel0 = beet_cloud.velocity
+
+    # for identifying the different particles
+    keys = beet_cloud.key 
 
     # Make test particles and beet and sun
     OORT = test_particles(beet_cloud, timestep_oort)
@@ -178,6 +202,11 @@ def run_simulation(end_time=(100|units.Myr),
         detections = detect_encounters(beet_cloud, sun)
         if len(detections) > 0:
             print(len(detections), 'detection(s)!')
+            detections_pos0, detections_vel0 = prune(main_keys_array = keys,
+                                                    main_initial_pos = beet_cloud_pos0,
+                                                    main_initial_vel = beet_cloud_vel0,
+                                                    detection = detections)
+            print("Length of arrays of initial positions of detected objects", len(detections_pos0))
         # Progress check
         bar_x_out_of_y(model_time, end_time, '')
 
@@ -245,7 +274,7 @@ def make_plots(plotdata=None):
         ax.set_xlim(sunpos[0] - 0.1, sunpos[0] + 0.1)
         ax.set_ylim(sunpos[1] - 0.1, sunpos[1] + 0.1)
         # plt.grid()
-        plt.savefig(f'../figures/fig_{fignum:03d}.png')
+        plt.savefig(f'figures/fig_{fignum:03d}.png')
         plt.close()
         fignum +=1
 
@@ -253,4 +282,4 @@ def make_plots(plotdata=None):
 # %%
 if __name__ in '__main__':
     run_simulation(end_time=(100|units.Myr), timestep_oort=(0.01|units.Myr), timestep_mw=(0.01|units.Myr), n_oort_objects=100)
-    # make_plots()
+    make_plots()
