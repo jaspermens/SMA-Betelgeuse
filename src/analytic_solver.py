@@ -18,6 +18,7 @@ from galactic_potential import MilkyWay_galaxy
 import pickle as pk
 import os
 import pandas as pd
+from amuse.community.seba.interface import SeBa
 
 #%%
 class star:
@@ -30,6 +31,9 @@ class star:
         self.model_time = 0 | units.yr
         self.timestep = timestep
         self.mdot = mdot
+        self.stellar = SeBa()
+        self.stellar.particles.add_particles(self.particles)
+        self.channel_mass = self.stellar.particles.new_channel_to(self.particles)
         
     def get_gravity_at_point(self, eps, x, y, z): 
         x -= self.particles.x
@@ -45,11 +49,16 @@ class star:
         
         return ax, ay, az
 
-    def update_mass(self):
+    def update_mass_linear(self):
         # self.M = self.M - 0.5 | units.MSun
         
         if self.particles.mass > (0 | units.MSun):
             self.particles.mass -= self.mdot * self.timestep
+
+    def update_mass(self):
+        self.stellar.evolve_model(self.model_time + self.timestep)
+        self.channel_mass.copy()
+        print('beet_mass', self.particles.mass)
 
     def update_pos(self):
         self.particles.x += self.particles.vx * self.timestep
@@ -100,7 +109,7 @@ def detect_encounters(cloud, sun, model_time, detections, detection_keys, detect
             continue
 
         relx, rely, relz = particle.position - sun[0].position
-        
+
         if (relx*relx + rely*rely + relz*relz).sqrt() < detection_radius:            
             relvx, relvy, relvz = particle.velocity - sun[0].velocity
             print('Detection!')            
@@ -167,7 +176,7 @@ def run_simulation(end_time=(100|units.Myr),
     # Make test particles and beet and sun
     OORT = test_particles(beet_cloud, timestep_oort)
     BEET = star(beet, timestep_oort)
-    SUN = star(sun, timestep_mw)    
+    SUN = test_particles(sun, timestep_mw)    
 
     # Bridge 'em
     # Bridge Oort and Beet
