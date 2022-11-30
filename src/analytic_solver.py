@@ -16,6 +16,8 @@ from amuse.ic import isotropic_cloud as ic # Has generate oort cloud
 from datetime import datetime # for timing
 from galactic_potential import MilkyWay_galaxy
 import pickle as pk
+import os
+import pandas as pd
 
 #%%
 class star:
@@ -92,28 +94,54 @@ def bar_x_out_of_y(x, y, text: str) -> None:
 
 #%% Testing sim
 
-def detect_encounters(cloud, sun):
-    detections = []
+def detect_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius):
     for particle in cloud:
-        # AMUSE bullshit dictates that cloud.position[0] - sun.position[0] is wrong
-        relx = particle.position.x - sun.position.x
-        rely = particle.position.y - sun.position.y 
-        relz = particle.position.z - sun.position.z
-        # relx, rely, relz = sun.position[0] - particle.position[0] 
-        if (relx*relx + rely*rely + relz*relz).sqrt() < (20 | units.pc):
-            detections.append(particle)
+        if particle.key in detection_keys:
+            continue
+
+        relx, rely, relz = particle.position - sun[0].position
+        
+        if (relx*relx + rely*rely + relz*relz).sqrt() < detection_radius:            
+            relvx, relvy, relvz = particle.velocity - sun[0].velocity
+            print('Detection!')            
+            detections.append([particle.key, model_time, relx, rely, relz, relvx, relvy, relvz])
+            detection_keys.append(particle.key)
             
     return detections
+
+
+def detect_pseudo_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius):
+    for particle in cloud:
+        if particle.key in detection_keys:
+            continue
+
+        relx, rely, relz = particle.position - sun[0].position
+        if (relx*relx + rely*rely).sqrt() < detection_radius:
+            relvx, relvy, relvz = particle.velocity - sun[0].velocity
+            print('Projected detection!')            
+            detections.append([particle.key, model_time, relx, rely, relz, relvx, relvy, relvz])
+            detection_keys.append(particle.key)
             
+    return detections
+
     
 def run_simulation(end_time=(100|units.Myr), 
                     timestep_oort=(1e-3|units.Myr), 
                     timestep_mw=(1e-2|units.Myr),
                     n_oort_objects=100,
+                    detection_radius=(20|units.pc),
                     do_plot: bool=True):
 
     """ Performs a simple test run"""
     
+    run_params = {'t_end': end_time, 
+                    'ts_oort': timestep_oort, 
+                    'ts_mw': timestep_mw,
+                    'n_objects': n_oort_objects,
+                    'det_rad': detection_radius}
+
+    pk.dump(run_params, open('run_params.pk', 'wb'))
+
     # beet
     beet = Particles(1)
     beet.mass = 20 | units.MSun
@@ -131,7 +159,7 @@ def run_simulation(end_time=(100|units.Myr),
                             m_star = 18 | units.MSun,
                             a_min = 60_000 | units.AU,
                             a_max = 200_000 | units.AU,
-                            seed=42)
+                            seed=4200)
 
     beet_cloud.position += beet.position
     beet_cloud.velocity += beet.velocity
@@ -161,9 +189,10 @@ def run_simulation(end_time=(100|units.Myr),
     
     # Do the thing
     model_time = 0 | units.yr
-    plot_times = np.linspace(0,1,num=101) * end_time
     plot_interval = 1 | units.Myr
     plotdata = []
+    detections = []
+    detection_keys = []
 
     start_time = datetime.now()
     while(model_time < end_time):
@@ -175,16 +204,14 @@ def run_simulation(end_time=(100|units.Myr),
         milky_way.evolve_model(model_time)
 
         # collision detection
-        detections = detect_encounters(beet_cloud, sun)
-        if len(detections) > 0:
-            print(len(detections), 'detection(s)!')
-        # Progress check
-        bar_x_out_of_y(model_time, end_time, '')
+        detect_pseudo_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
 
         #  Saving data for future plotting
-        if do_plot:
-            if (model_time % plot_interval).value_in(units.Myr) == 0.0:
-
+        if (model_time % plot_interval).value_in(units.Myr) == 0.0:
+            # Progress check
+            bar_x_out_of_y(model_time.in_(end_time.unit), end_time, '')
+            if do_plot:
+            
                 # print(str( int(100*time_percentage)) + ' percent done')
                 # print(model_time)
                 plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr', 
@@ -208,6 +235,12 @@ def run_simulation(end_time=(100|units.Myr),
     
     end_time = datetime.now() - start_time
     print(f'Duration: {end_time}')
+
+    detection_df = pd.DataFrame(detections)
+    detection_df.columns = "key", "time", "x", "y", "z", "vx", "vy", "vz"
+    print(detection_df)
+    pk.dump(detection_df, open('detections.pk', 'wb'))
+
             
     if do_plot:
         pk.dump(plotdata, open('last_run_plotdata.pk', 'wb'))
@@ -250,7 +283,16 @@ def make_plots(plotdata=None):
         fignum +=1
 
 
+def make_movie():
+    command = "ffmpeg -y -framerate 5 -i ../figures/fig_%3d.png -c:v libx264 -vb 20M -pix_fmt yuv420p -filter:v 'setpts=2*PTS' -y ../figures/movie.mp4"
+    os.system(command)
+
+
 # %%
 if __name__ in '__main__':
-    run_simulation(end_time=(100|units.Myr), timestep_oort=(0.01|units.Myr), timestep_mw=(0.01|units.Myr), n_oort_objects=100)
+    run_simulation(end_time=(30|units.Myr), 
+                    timestep_oort=(0.1|units.Myr), 
+                    timestep_mw=(0.1|units.Myr),
+                    n_oort_objects=100)
     # make_plots()
+    # make_movie()

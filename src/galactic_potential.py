@@ -142,7 +142,8 @@ def test_run(end_time, step, bridge_timestep = 1 | units.Myr):
             plt.xlim(-10, 10)
             plt.ylim(-10, 10)
 
-test_run(end_time = 10 | units.Myr, step = 1 | units.Myr)
+if __name__ in '__main__':
+    test_run(end_time = 10 | units.Myr, step = 1 | units.Myr)
 
 
 
