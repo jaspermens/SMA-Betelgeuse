@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -103,7 +102,7 @@ def bar_x_out_of_y(x, y, text: str='') -> None:
 
 #%% Testing sim
 
-def detect_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius):
+def detect_encounters_slow(cloud, sun, model_time, detections, detection_keys, detection_radius):
     for particle in cloud:
         if particle.key in detection_keys:
             continue
@@ -119,7 +118,7 @@ def detect_encounters(cloud, sun, model_time, detections, detection_keys, detect
     return detections
 
 
-def detect_pseudo_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius):
+def detect_pseudo_encounters_slow(cloud, sun, model_time, detections, detection_keys, detection_radius):
     for particle in cloud:
         if particle.key in detection_keys:
             continue
@@ -133,12 +132,27 @@ def detect_pseudo_encounters(cloud, sun, model_time, detections, detection_keys,
             
     return detections
 
-    
+
+def detect_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius):
+    relpos = cloud.position - sun.position
+    distances = relpos.lengths()
+
+    if distances.min() < detection_radius:
+        print('detection!!')
+        cpi = distances.argmin()  # closest particle index
+        closest = cloud[cpi]
+        relvx, relvy, relvz = closest.velocity
+        relx, rely, relz = closest.position
+        detections.append([closest.key, model_time, relx, rely, relz, relvx, relvy, relvz])
+        detection_keys.append(closest.key)
+        cloud.remove_particle(cloud[cpi])
+        detect_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius)
+
+
 def run_simulation(end_time=(100|units.Myr), 
                     timestep=(1e-3|units.Myr),
                     n_oort_objects=100,
-                    detection_radius=(20|units.pc),
-                    do_plot: bool=True):
+                    detection_radius=(20|units.pc)):
 
     """ Performs a simple test run"""
     
@@ -165,9 +179,9 @@ def run_simulation(end_time=(100|units.Myr),
     beet_cloud = ic.new_isotropic_cloud(number_of_particles=n_oort_objects,
                             m_star = beet.mass,
                             a_min = 60_000 | units.AU,
-                            a_max = 200_000 | units.AU,
+                            a_max = 300_000 | units.AU,
                             q_min = 20_000 | units.AU,
-                            seed=4200)
+                            seed=42069)
 
     beet_cloud.position += beet.position
     beet_cloud.velocity += beet.velocity
@@ -195,6 +209,7 @@ def run_simulation(end_time=(100|units.Myr),
 
     # Make channel
     channel_out = milky_way.particles.new_channel_to(beet_cloud)
+    channel_in = beet_cloud.new_channel_to(milky_way.particles)
     channel_out_sun = milky_way.particles.new_channel_to(sun)
     channel_out_beet = milky_way.particles.new_channel_to(beet)
     
@@ -208,57 +223,52 @@ def run_simulation(end_time=(100|units.Myr),
     start_time = datetime.now()
     while(model_time < end_time):
         # Evolve in milky way timesteps because those should be the largest
-        channel_out.copy()
         model_time += timestep
         
         # Do the thing.
         milky_way.evolve_model(model_time)
 
         # collision detection
+        channel_out.copy()
+        channel_out_sun.copy()          # I don't know if these two do anything
+        channel_out_beet.copy()         # It runs just as well without them two channels
         detect_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
+        channel_in.copy()
 
         #  Saving data for future plotting
         if (model_time % plot_interval).value_in(units.Myr) == 0.0:
             # Progress check
             bar_x_out_of_y(model_time.in_(end_time.unit), end_time, '')
-            if do_plot:
-            
-                # print(str( int(100*time_percentage)) + ' percent done')
-                # print(model_time)
-                plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr', 
-                                (BEET.particles.x.value_in(units.kpc), 
-                                    BEET.particles.y.value_in(units.kpc)), 
-                                (beet_cloud.x.value_in(units.kpc), 
-                                    beet_cloud.y.value_in(units.kpc)),
-                                (sun.x.value_in(units.kpc),
-                                     sun.y.value_in(units.kpc))
-                ))
-            # if int(model_time.value_in(units.yr)) in plot_times.value_in(units.yr):
-            #     channel_out.copy()
-            #     # print(str( int(100*time_percentage)) + ' percent done')
-            #     # print(model_time)
-            #     plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr', 
-            #                     (BEET.particles.x.value_in(units.kpc), 
-            #                         BEET.particles.y.value_in(units.kpc)), 
-            #                     (beet_cloud.x.value_in(units.kpc), 
-            #                         beet_cloud.y.value_in(units.kpc))
-            #     ))
+
+            # print(str( int(100*time_percentage)) + ' percent done')
+            # print(model_time)
+            plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr', 
+                            (BEET.particles.x.value_in(units.kpc), 
+                                BEET.particles.y.value_in(units.kpc),
+                                BEET.particles.z.value_in(units.kpc)), 
+                            (beet_cloud.x.value_in(units.kpc), 
+                                beet_cloud.y.value_in(units.kpc),
+                                beet_cloud.z.value_in(units.kpc)),
+                            (sun.x.value_in(units.kpc),
+                                    sun.y.value_in(units.kpc),
+                                    sun.z.value_in(units.kpc))
+            ))
     
     end_time = datetime.now() - start_time
     print(f'Duration: {end_time}')
 
-    if do_plot:
-        pk.dump(plotdata, open('last_run_plotdata.pk', 'wb'))
-        make_plots(plotdata)      
+    pk.dump(plotdata, open('last_run_plotdata.pk', 'wb'))
 
-    detection_df = pd.DataFrame(detections)
-    detection_df.columns = "key", "time", "x", "y", "z", "vx", "vy", "vz"
-    print(detection_df)
-    pk.dump(detection_df, open('detections.pk', 'wb'))
+    if len(detections) > 0:
+        detection_df = pd.DataFrame(detections)
+        detection_df.columns = "key", "time", "x", "y", "z", "vx", "vy", "vz"
+        print(detection_df)
+        pk.dump(detection_df, open('detections.pk', 'wb'))
 
 
 def make_plots(plotdata=None):
     import matplotlib.patches as patches
+    import mpl_toolkits.mplot3d.art3d as art3d
     if not plotdata:
         plotdata = pk.load(open('last_run_plotdata.pk', 'rb'))
     
@@ -269,38 +279,52 @@ def make_plots(plotdata=None):
         tit, beetpos, cloudpos, sunpos = plot_data
         
         colors = ['purple' , 'goldenrod', 'forestgreen', 'steelblue', 'teal']
-        colors = colors * (len(cloudpos[0]) // len(colors))
+        colors = colors * (len(cloudpos) // len(colors))
 
-        fig, ax = plt.subplots(1, figsize=(4,4), dpi=200)
+        fig, ax = plt.subplots(1, figsize=(4,4), dpi=200, subplot_kw=dict(projection='3d'))
         ax.set_title(tit)
-        ax.scatter(0, 0, c='maroon', zorder=2)
+        # ax.scatter(0, 0, c='maroon')
         ax.scatter(beetpos[0],
                     beetpos[1],
+                    beetpos[2],
                     c = 'red', zorder=2,
                     s=2)
         ax.scatter(sunpos[0],
                     sunpos[1],
+                    sunpos[2],
                     c = 'gold', zorder=2,
                     s=2)
-        circ = patches.Circle((sunpos[0], sunpos[1]), radius=0.02, transform=ax.transData, fill=False, color='purple', linestyle='--')
-        ax.add_patch(circ)
+
+        # circ = patches.Circle((sunpos[0], sunpos[1]), radius=0.02, transform=ax.transData, fill=False, color='purple', linestyle='--')
+        # ax.add_patch(circ)
+        
+        # for i in ["x","y","z"]:
+        #     circle = patches.Circle((sunpos[0], sunpos[1]), radius=0.02, transform=ax.transData, fill=False, color='purple', linestyle='--')
+        #     ax.add_patch(circle)
+        #     art3d.pathpatch_2d_to_3d(circle, z=sunpos[2], zdir=i)
+
         ax.scatter(cloudpos[0], 
                     cloudpos[1],
-                    c = colors,
+                    cloudpos[2],
+                    # c = colors,
                     s = 1
                     )
 
         # For full galaxy
         # ax.set_xlim(-12, 12)
-        # ax.set_ylim(-12,12)
+        # ax.set_ylim(-12, 12)
+        # ax.set_zlim(-1, 1)
 
         # For Sun center
-        # ax.set_xlim(sunpos[0] - 0.4, sunpos[0] + 0.4)
-        # ax.set_ylim(sunpos[1] - 0.4, sunpos[1] + 0.4)
+        ax.set_xlim(sunpos[0] - 0.4, sunpos[0] + 0.4)
+        ax.set_ylim(sunpos[1] - 0.4, sunpos[1] + 0.4)        
+        ax.set_zlim(sunpos[2] - 0.4, sunpos[2] + 0.4)
+
 
         # For Beet center
-        ax.set_xlim(beetpos[0] - 0.01, beetpos[0] + 0.01)
-        ax.set_ylim(beetpos[1] - 0.01, beetpos[1] + 0.01)
+        # ax.set_xlim(beetpos[0] - 0.002, beetpos[0] + 0.002)
+        # ax.set_ylim(beetpos[1] - 0.002, beetpos[1] + 0.002)
+        # ax.set_zlim(beetpos[2] - 0.002, beetpos[2] + 0.002)
 
         plt.savefig(f'../figures/fig_{fignum:03d}.png')
         plt.close()
@@ -315,8 +339,9 @@ def make_movie():
 
 # %%
 if __name__ in '__main__':
-    # run_simulation(end_time=(20|units.Myr), 
-    #                 timestep=(0.001|units.Myr),
-    #                 n_oort_objects=50)
+    # run_simulation(end_time=(250|units.Myr), 
+    #                 timestep=(0.1|units.Myr),
+    #                 n_oort_objects=500,
+    #                 detection_radius=120|units.pc)
     make_plots()
     make_movie()
