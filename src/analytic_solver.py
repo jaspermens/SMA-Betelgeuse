@@ -258,21 +258,16 @@ def run_simulation(end_time=(100|units.Myr),
         #  Saving data for future plotting
         if (model_time % plot_interval).value_in(units.Myr) == 0.0:
             # Progress check
-            bar_x_out_of_y(model_time.in_(end_time.unit), end_time, '')
+            bar_x_out_of_y(model_time.in_(end_time.unit), end_time, text=f'{n_oort_objects  - len(beet_cloud)} detections')
 
             # print(str( int(100*time_percentage)) + ' percent done')
             # print(model_time)
-            plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr', 
-                            (BEET.particles.x.value_in(units.kpc), 
-                                BEET.particles.y.value_in(units.kpc),
-                                BEET.particles.z.value_in(units.kpc)), 
-                            (beet_cloud.x.value_in(units.kpc), 
-                                beet_cloud.y.value_in(units.kpc),
-                                beet_cloud.z.value_in(units.kpc)),
-                            (sun.x.value_in(units.kpc),
-                                    sun.y.value_in(units.kpc),
-                                    sun.z.value_in(units.kpc))
-            ))
+            plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr',
+                            BEET.particles[0].position.value_in(units.kpc),
+                            beet_cloud.position.value_in(units.kpc),
+                            sun.position.value_in(units.kpc)[0])
+            )
+
             
     end_time = datetime.now() - start_time
     print(f'Duration: {end_time}')
