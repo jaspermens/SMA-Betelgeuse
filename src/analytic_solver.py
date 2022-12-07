@@ -69,6 +69,9 @@ class star:
             self.update_pos()
             self.update_mass()
             self.model_time += self.timestep
+    
+    def change_timestep(self, new_timestep):
+        self.timestep = new_timestep
         
 class test_particles:
     def __init__(self,
@@ -90,6 +93,9 @@ class test_particles:
         while self.model_time < time:
             self.update_pos()
             self.model_time += self.timestep
+            
+    def change_timestep(self, new_timestep):
+        self.timestep = new_timestep
 
 #%% progress bar function
 def bar_x_out_of_y(x, y, text: str='') -> None:
@@ -151,6 +157,7 @@ def detect_encounters(cloud, sun, model_time, detections, detection_keys, detect
 
 def run_simulation(end_time=(100|units.Myr), 
                     timestep=(1e-3|units.Myr),
+                    timestep_after_sn = (2 | units.Myr),
                     n_oort_objects=100,
                     detection_radius=(20|units.pc)):
 
@@ -165,7 +172,7 @@ def run_simulation(end_time=(100|units.Myr),
 
     # beet
     beet = Particles(1)
-    beet.mass = 18 | units.MSun
+    beet.mass = 20 | units.MSun
     beet.position = (26660, 0, 0) | units.lightyear
     beet.velocity = (0, 250, 0) | units.kms
     
@@ -219,7 +226,7 @@ def run_simulation(end_time=(100|units.Myr),
     plotdata = []
     detections = []
     detection_keys = []
-
+    gone_supernova = False
     start_time = datetime.now()
     while(model_time < end_time):
         # Evolve in milky way timesteps because those should be the largest
@@ -227,7 +234,20 @@ def run_simulation(end_time=(100|units.Myr),
         
         # Do the thing.
         milky_way.evolve_model(model_time)
-
+        # 4 is for Core Helium Burning
+        # 14 is black hole
+        # Ignore the AMUSE/SeBa documentation
+        # print(BEET.stellar.particles[0].stellar_type, BEET.stellar.particles[0].stellar_type.value)
+        if BEET.stellar.particles[0].stellar_type.value == 14 and gone_supernova==False:
+            print('\n SUPER NOVA NOW!!')
+            print('Mass after SN: ',BEET.stellar.particles.mass)
+            # Flag that ensures timestep changes only once
+            gone_supernova = True
+            OORT.change_timestep(timestep_after_sn)
+            BEET.change_timestep(timestep_after_sn)
+            SUN.change_timestep(timestep_after_sn)
+            milky_way.timestep = timestep_after_sn
+            
         # collision detection
         channel_out.copy()
         channel_out_sun.copy()          # I don't know if these two do anything
@@ -253,10 +273,10 @@ def run_simulation(end_time=(100|units.Myr),
                                     sun.y.value_in(units.kpc),
                                     sun.z.value_in(units.kpc))
             ))
-    
+            
     end_time = datetime.now() - start_time
     print(f'Duration: {end_time}')
-
+    
     pk.dump(plotdata, open('last_run_plotdata.pk', 'wb'))
 
     if len(detections) > 0:
@@ -264,7 +284,7 @@ def run_simulation(end_time=(100|units.Myr),
         detection_df.columns = "key", "time", "x", "y", "z", "vx", "vy", "vz"
         print(detection_df)
         pk.dump(detection_df, open('detections.pk', 'wb'))
-
+    
 
 def make_plots(plotdata=None):
     import matplotlib.patches as patches
@@ -279,24 +299,23 @@ def make_plots(plotdata=None):
         tit, beetpos, cloudpos, sunpos = plot_data
         
         colors = ['purple' , 'goldenrod', 'forestgreen', 'steelblue', 'teal']
-        colors = colors * (len(cloudpos) // len(colors))
-
-        fig, ax = plt.subplots(1, figsize=(4,4), dpi=200, subplot_kw=dict(projection='3d'))
+        colors = colors * ( (len(cloudpos[0]))  // len(colors))
+        fig, ax = plt.subplots(1, figsize=(4,4), dpi=200) #, subplot_kw=dict(projection='3d'))
         ax.set_title(tit)
         # ax.scatter(0, 0, c='maroon')
         ax.scatter(beetpos[0],
                     beetpos[1],
-                    beetpos[2],
+                    
                     c = 'red', zorder=2,
                     s=2)
         ax.scatter(sunpos[0],
                     sunpos[1],
-                    sunpos[2],
+                    
                     c = 'gold', zorder=2,
                     s=2)
 
-        # circ = patches.Circle((sunpos[0], sunpos[1]), radius=0.02, transform=ax.transData, fill=False, color='purple', linestyle='--')
-        # ax.add_patch(circ)
+        circ = patches.Circle((sunpos[0], sunpos[1]), radius=0.01, transform=ax.transData, fill=False, color='purple', linestyle='--')
+        ax.add_patch(circ)
         
         # for i in ["x","y","z"]:
         #     circle = patches.Circle((sunpos[0], sunpos[1]), radius=0.02, transform=ax.transData, fill=False, color='purple', linestyle='--')
@@ -305,25 +324,24 @@ def make_plots(plotdata=None):
 
         ax.scatter(cloudpos[0], 
                     cloudpos[1],
-                    cloudpos[2],
-                    # c = colors,
+                    c = 'steelblue',
                     s = 1
                     )
 
         # For full galaxy
-        # ax.set_xlim(-12, 12)
-        # ax.set_ylim(-12, 12)
-        # ax.set_zlim(-1, 1)
+        ax.set_xlim(-10, 10)
+        ax.set_ylim(-10, 10)
+        #ax.set_zlim(-1, 1)
 
         # For Sun center
-        ax.set_xlim(sunpos[0] - 0.4, sunpos[0] + 0.4)
-        ax.set_ylim(sunpos[1] - 0.4, sunpos[1] + 0.4)        
-        ax.set_zlim(sunpos[2] - 0.4, sunpos[2] + 0.4)
-
+        # ax.set_xlim(sunpos[0] - 0.4, sunpos[0] + 0.4)
+        # ax.set_ylim(sunpos[1] - 0.4, sunpos[1] + 0.4)        
+        #ax.set_zlim(sunpos[2] - 0.4, sunpos[2] + 0.4)
+        
 
         # For Beet center
-        # ax.set_xlim(beetpos[0] - 0.002, beetpos[0] + 0.002)
-        # ax.set_ylim(beetpos[1] - 0.002, beetpos[1] + 0.002)
+        ax.set_xlim(beetpos[0] - 0.202, beetpos[0] + 0.202)
+        ax.set_ylim(beetpos[1] - 0.202, beetpos[1] + 0.202)
         # ax.set_zlim(beetpos[2] - 0.002, beetpos[2] + 0.002)
 
         plt.savefig(f'../figures/fig_{fignum:03d}.png')
@@ -333,15 +351,16 @@ def make_plots(plotdata=None):
 
 
 def make_movie():
-    command = "ffmpeg -y -framerate 25 -i ../figures/fig_%3d.png -c:v libx264 -vb 20M -pix_fmt yuv420p -filter:v 'setpts=2*PTS' -y ../figures/movie.mp4"
+    command = "ffmpeg -y -framerate 25 -i ../figures/fig_%3d.png -c:v libx264 -hide_banner -vb 20M -loglevel panic -pix_fmt yuv420p -filter:v 'setpts=2*PTS' -y ../figures/movie.mp4"
     os.system(command)
 
 
 # %%
 if __name__ in '__main__':
-    # run_simulation(end_time=(250|units.Myr), 
-    #                 timestep=(0.1|units.Myr),
-    #                 n_oort_objects=500,
-    #                 detection_radius=120|units.pc)
+    run_simulation(end_time=(260|units.Myr), 
+                    timestep=(0.1|units.Myr),
+                    timestep_after_sn = (1|units.Myr),
+                    n_oort_objects=10_000,
+                    detection_radius=10|units.pc)
     make_plots()
     make_movie()
