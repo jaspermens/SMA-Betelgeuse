@@ -138,6 +138,32 @@ def detect_pseudo_encounters_slow(cloud, sun, model_time, detections, detection_
             
     return detections
 
+def energy_check(kinetic, potential, particles):
+    # PRAY that AMUSE works this one out by itsellf.
+    k = particles.kinetic_energy()
+    p = particles.potential_energy()
+    # Append to existing lists
+    kinetic.append(k)
+    potential.append(p)
+    return kinetic, potential
+
+def delete_bound(cloud, beet):
+    relpos = cloud.position - beet.position
+    relvel = cloud.velocity - beet.velocity
+    distances = relpos.lengths()
+    velocities = relvel.lengths()
+    bound = []
+    j=1 # counter
+    for i  in range(len(distances)):
+        k = 0.5*velocities[i]**2
+        p = constants.G * beet.mass / distances[i]
+        if p>k:
+            bound.append(i)
+            # maybe a-e plot to see who sticks around
+            j=j+1
+    print('DARKNESS NUMBER: ', j)
+    cloud.remove_particle(cloud[bound])
+    return bound
 
 def detect_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius):
     relpos = cloud.position - sun.position
@@ -188,7 +214,7 @@ def run_simulation(end_time=(100|units.Myr),
                             a_min = 60_000 | units.AU,
                             a_max = 300_000 | units.AU,
                             q_min = 20_000 | units.AU,
-                            seed=42069)
+                            seed=8)
 
     beet_cloud.position += beet.position
     beet_cloud.velocity += beet.velocity
@@ -239,10 +265,14 @@ def run_simulation(end_time=(100|units.Myr),
         # Ignore the AMUSE/SeBa documentation
         # print(BEET.stellar.particles[0].stellar_type, BEET.stellar.particles[0].stellar_type.value)
         if BEET.stellar.particles[0].stellar_type.value == 14 and gone_supernova==False:
-            print('\n SUPER NOVA NOW!!')
-            print('Mass after SN: ',BEET.stellar.particles.mass)
+            print('\n SUPERNOVA IS NOW!!')
             # Flag that ensures timestep changes only once
             gone_supernova = True
+            # Delete bounds
+            channel_out.copy()
+            delete_bound(beet_cloud, beet)
+            channel_in.copy()
+            # Timestep changes
             OORT.change_timestep(timestep_after_sn)
             BEET.change_timestep(timestep_after_sn)
             SUN.change_timestep(timestep_after_sn)
@@ -340,8 +370,8 @@ def make_plots(plotdata=None):
         
 
         # For Beet center
-        ax.set_xlim(beetpos[0] - 0.202, beetpos[0] + 0.202)
-        ax.set_ylim(beetpos[1] - 0.202, beetpos[1] + 0.202)
+        ax.set_xlim(beetpos[0] - 0.012, beetpos[0] + 0.012)
+        ax.set_ylim(beetpos[1] - 0.012, beetpos[1] + 0.012)
         # ax.set_zlim(beetpos[2] - 0.002, beetpos[2] + 0.002)
 
         plt.savefig(f'../figures/fig_{fignum:03d}.png')
@@ -357,10 +387,10 @@ def make_movie():
 
 # %%
 if __name__ in '__main__':
-    run_simulation(end_time=(260|units.Myr), 
+    run_simulation(end_time=(100|units.Myr), 
                     timestep=(0.1|units.Myr),
                     timestep_after_sn = (1|units.Myr),
-                    n_oort_objects=10_000,
+                    n_oort_objects=20_000,
                     detection_radius=10|units.pc)
     make_plots()
     make_movie()
