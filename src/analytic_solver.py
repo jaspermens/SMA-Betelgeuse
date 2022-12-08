@@ -36,6 +36,13 @@ class star:
             self.stellar.particles.add_particles(self.particles)
             self.channel_mass = self.stellar.particles.new_channel_to(self.particles)
 
+    def pre_evolve(self, end_time):
+        if not self.stellar:
+            print("This star does not have a stellar evo code!")
+            return
+        self.stellar.evolve_model(end_time)
+        self.channel_mass.copy()
+
     def get_gravity_at_point(self, eps, x, y, z): 
         x -= self.particles.x
         y -= self.particles.y
@@ -148,6 +155,7 @@ def energy_check(kinetic, potential, particles):
     return kinetic, potential
 
 def delete_bound(cloud, beet):
+    print("BEET MASS POST SUPERNOVA:", beet.mass)
     relpos = cloud.position - beet.position
     relvel = cloud.velocity - beet.velocity
     distances = relpos.lengths()
@@ -173,8 +181,8 @@ def detect_encounters(cloud, sun, model_time, detections, detection_keys, detect
         # print('detection!!')
         cpi = distances.argmin()  # closest particle index
         closest = cloud[cpi]
-        relvx, relvy, relvz = closest.velocity
-        relx, rely, relz = closest.position
+        relvx, relvy, relvz = closest.velocity - sun.velocity[0]
+        relx, rely, relz = relpos[cpi]
         detections.append([closest.key, model_time, relx, rely, relz, relvx, relvy, relvz])
         detection_keys.append(closest.key)
         cloud.remove_particle(cloud[cpi])
@@ -251,6 +259,7 @@ def run_simulation(end_time=(100|units.Myr),
     # Start runnin'
     model_time = 0 | units.yr
     plot_interval = 1 | units.Myr
+    last_plot_time = model_time - plot_interval
     plotdata = []
     detections = []
     detection_keys = []
@@ -269,14 +278,17 @@ def run_simulation(end_time=(100|units.Myr),
         channel_in.copy()
 
         #  Saving data for future plotting
-        if (model_time % plot_interval).value_in(units.Myr) == 0.0:
+        if (last_plot_time + plot_interval <= model_time):
             # Progress check
             bar_x_out_of_y(model_time.in_(end_time.unit), end_time, text=f'{len(detections)} detections')
+            
 
             plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr',
                             BEET.particles[0].position.value_in(units.kpc),
                             beet_cloud.position.value_in(units.kpc),
                             sun.position.value_in(units.kpc)[0]))
+
+            last_plot_time = model_time
 
         # 4 is for Core Helium Burning
         # 14 is black hole
@@ -297,6 +309,7 @@ def run_simulation(end_time=(100|units.Myr),
             BEET.change_timestep(timestep_after_sn)
             SUN.change_timestep(timestep_after_sn)
             milky_way.timestep = timestep_after_sn
+            timestep = timestep_after_sn
 
     duration = datetime.now() - start_time
     print(f'Duration: {duration}')
@@ -310,7 +323,7 @@ def run_simulation(end_time=(100|units.Myr),
         pk.dump(detection_df, open('detections.pk', 'wb'))
     
 
-def make_plots(plotdata=None, focus="beet", zoom=None):
+def make_plots(plotdata=None, focus="beet", zoom=None, mask_outside_detection_radius=False, start_plots_at_num=0, detection_radius=1|units.pc):
     import matplotlib.patches as patches
     import mpl_toolkits.mplot3d.art3d as art3d
 
@@ -323,11 +336,20 @@ def make_plots(plotdata=None, focus="beet", zoom=None):
 
     colors = ['purple' , 'goldenrod', 'forestgreen', 'steelblue', 'teal']
     colors = colors * ((len(plotdata[0][2].T[0])) // len(colors)+1)
-    
+
+    plotdata = plotdata[start_plots_at_num:]
     fignum = 0
     num_plots = len(plotdata)
     for plot_data in plotdata:
         tit, beetpos, cloudpos, sunpos = plot_data
+
+        # alphas = np.array([0.1, 1])
+        relative_z = np.abs((cloudpos.T[2]-sunpos[2]) / detection_radius.value_in(units.kpc)) # relz in detection radii
+        
+        alphas = np.ones(relative_z.shape, dtype=float)
+        if mask_outside_detection_radius:
+            alphas[relative_z >= 1] = 0.1
+            alphas[relative_z < 1] = 1
 
         fig, ax = plt.subplots(1, figsize=(4,4), dpi=200) #, subplot_kw=dict(projection='3d'))
         ax.set_title(tit)
@@ -343,11 +365,12 @@ def make_plots(plotdata=None, focus="beet", zoom=None):
         ax.scatter(cloudpos.T[0], 
                     cloudpos.T[1],
                     c = colors[:len(cloudpos.T[0])],
+                    alpha=alphas,
                     s = 1
                     )
         
         # Circle around the sun to show detection radius:
-        circ = patches.Circle((sunpos[0], sunpos[1]), radius=0.01, transform=ax.transData, fill=False, color='purple', linestyle='--')
+        circ = patches.Circle((sunpos[0], sunpos[1]), radius=detection_radius.value_in(units.kpc), transform=ax.transData, fill=False, color='purple', linestyle='--')
         ax.add_patch(circ)
 
         if focus == "galaxy":
@@ -387,10 +410,11 @@ def make_movie():
 
 
 if __name__ in '__main__':
-    run_simulation(end_time=(300|units.Myr), 
-                    timestep=(0.1|units.Myr),
-                    timestep_after_sn = (1|units.Myr),
-                    n_oort_objects=10_000,
-                    detection_radius=1|units.pc)
-    make_plots()
+    detection_radius = 1|units.pc
+    run_simulation(end_time=(240|units.Myr), 
+                    timestep=(0.001|units.Myr),
+                    timestep_after_sn = (0.1|units.Myr),
+                    n_oort_objects=100_000,
+                    detection_radius=detection_radius)
+    make_plots(focus='sun', zoom=.020, mask_outside_detection_radius=True, start_plots_at_num=220, detection_radius=detection_radius)
     make_movie()
