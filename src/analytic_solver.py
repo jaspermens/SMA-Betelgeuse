@@ -35,7 +35,7 @@ class star:
         if self.stellar:
             self.stellar.particles.add_particles(self.particles)
             self.channel_mass = self.stellar.particles.new_channel_to(self.particles)
-        
+
     def get_gravity_at_point(self, eps, x, y, z): 
         x -= self.particles.x
         y -= self.particles.y
@@ -57,7 +57,7 @@ class star:
 
     def update_mass(self):
         if self.stellar:
-            self.stellar.evolve_model(self.model_time + self.timestep)
+            self.stellar.evolve_model(self.stellar.model_time + self.timestep)
             self.channel_mass.copy()
 
     def update_pos(self):
@@ -170,7 +170,7 @@ def detect_encounters(cloud, sun, model_time, detections, detection_keys, detect
     distances = relpos.lengths()
 
     if distances.min() < detection_radius:
-        print('detection!!')
+        # print('detection!!')
         cpi = distances.argmin()  # closest particle index
         closest = cloud[cpi]
         relvx, relvy, relvz = closest.velocity
@@ -207,8 +207,7 @@ def run_simulation(end_time=(100|units.Myr),
 
     BEET = star(beet, timestep, stellar_evo_code=beet_seba)
     # Pre-evolution:
-    BEET.stellar.stellar.evolve_model(8.4 | units.Myr) 
-    BEET.channel_mass.copy()
+    BEET.pre_evolve(8.4|units.Myr)
     # An age of 8.4 Myr works pretty well, and that puts the current mass at 18 or so MSun
     # only downside is that rapid mass loss starts at ~8 Myr, which the oort cloud would notice.
     
@@ -220,11 +219,11 @@ def run_simulation(end_time=(100|units.Myr),
 
     # Oort cloud
     beet_cloud = ic.new_isotropic_cloud(number_of_particles=n_oort_objects,
-                            m_star = beet.mass,
+                            m_star = BEET.particles[0].mass,
                             a_min = 60_000 | units.AU,
                             a_max = 300_000 | units.AU,
                             q_min = 20_000 | units.AU,
-                            seed=8)
+                            seed=42069)
 
     beet_cloud.position += beet.position
     beet_cloud.velocity += beet.velocity
@@ -261,6 +260,23 @@ def run_simulation(end_time=(100|units.Myr),
         model_time += timestep
         
         milky_way.evolve_model(model_time)
+            
+        # collision detection
+        channel_out.copy()
+        channel_out_sun.copy()          # I don't know if these two do anything
+        channel_out_beet.copy()         # It runs just as well without them two channels
+        detect_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
+        channel_in.copy()
+
+        #  Saving data for future plotting
+        if (model_time % plot_interval).value_in(units.Myr) == 0.0:
+            # Progress check
+            bar_x_out_of_y(model_time.in_(end_time.unit), end_time, text=f'{len(detections)} detections')
+
+            plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr',
+                            BEET.particles[0].position.value_in(units.kpc),
+                            beet_cloud.position.value_in(units.kpc),
+                            sun.position.value_in(units.kpc)[0]))
 
         # 4 is for Core Helium Burning
         # 14 is black hole
@@ -281,23 +297,6 @@ def run_simulation(end_time=(100|units.Myr),
             BEET.change_timestep(timestep_after_sn)
             SUN.change_timestep(timestep_after_sn)
             milky_way.timestep = timestep_after_sn
-            
-        # collision detection
-        channel_out.copy()
-        channel_out_sun.copy()          # I don't know if these two do anything
-        channel_out_beet.copy()         # It runs just as well without them two channels
-        detect_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
-        channel_in.copy()
-
-        #  Saving data for future plotting
-        if (model_time % plot_interval).value_in(units.Myr) == 0.0:
-            # Progress check
-            bar_x_out_of_y(model_time.in_(end_time.unit), end_time, text=f'{n_oort_objects  - len(beet_cloud)} detections')
-
-            plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr',
-                            BEET.particles[0].position.value_in(units.kpc),
-                            beet_cloud.position.value_in(units.kpc),
-                            sun.position.value_in(units.kpc)[0]))
 
     duration = datetime.now() - start_time
     print(f'Duration: {duration}')
@@ -323,12 +322,11 @@ def make_plots(plotdata=None, focus="beet", zoom=None):
         raise IndexError(f"focus must be in {focus_options}, got: {focus}. aborting...")
 
     colors = ['purple' , 'goldenrod', 'forestgreen', 'steelblue', 'teal']
-    colors = colors * ((len(plotdata[0][2].T[0])) // len(colors))
+    colors = colors * ((len(plotdata[0][2].T[0])) // len(colors)+1)
     
     fignum = 0
     num_plots = len(plotdata)
     for plot_data in plotdata:
-        bar_x_out_of_y(fignum, num_plots)
         tit, beetpos, cloudpos, sunpos = plot_data
 
         fig, ax = plt.subplots(1, figsize=(4,4), dpi=200) #, subplot_kw=dict(projection='3d'))
@@ -379,6 +377,8 @@ def make_plots(plotdata=None, focus="beet", zoom=None):
         plt.savefig(f'../figures/fig_{fignum:03d}.png')
         plt.close()
         fignum +=1
+        bar_x_out_of_y(fignum, num_plots)
+
 
 
 def make_movie():
@@ -387,10 +387,10 @@ def make_movie():
 
 
 if __name__ in '__main__':
-    run_simulation(end_time=(100|units.Myr), 
+    run_simulation(end_time=(300|units.Myr), 
                     timestep=(0.1|units.Myr),
                     timestep_after_sn = (1|units.Myr),
-                    n_oort_objects=20_000,
-                    detection_radius=10|units.pc)
+                    n_oort_objects=10_000,
+                    detection_radius=1|units.pc)
     make_plots()
     make_movie()
