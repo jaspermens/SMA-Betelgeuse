@@ -18,6 +18,7 @@ import pickle as pk
 import os
 import pandas as pd
 from amuse.community.seba.interface import SeBa
+from beet_initial_posvel import get_initial_posvel_beet
 
 
 class star:
@@ -177,13 +178,20 @@ def run_simulation(end_time = 100 | units.Myr,
                     'det_rad': detection_radius}
 
     pk.dump(run_params, open('run_params.pk', 'wb'))
+    
+    # sun
+    sun = Particles(1)
+    sun.mass = 1 | units.MSun
+    sun.position = (26660, 0, 0) | units.lightyear
+    sun.velocity = (0, 250, 0) | units.kms
 
     # beet
     beet = Particles(1)
     beet.mass = 21 | units.MSun
-    beet.position = (26660, 0, 0) | units.lightyear
-    beet.velocity = (0, 250, 0) | units.kms
-    
+    p, v = get_initial_posvel_beet()
+    beet.position = (p|units.pc) + sun.position
+    beet.velocity = (v|units.kms) + sun.velocity
+
     print("Initialising and pre-evolving SeBa")
     beet_seba = SeBa()
     beet_seba.set_metallicity(0.024) # From Dolan & Mathews, https://arxiv.org/pdf/1406.3143v2.pdf
@@ -194,11 +202,6 @@ def run_simulation(end_time = 100 | units.Myr,
     # An age of 8.4 Myr works pretty well, and that puts the current mass at 18 or so MSun
     # only downside is that rapid mass loss starts at ~8 Myr, which the oort cloud would notice.
     print("Generating Sun and Oort cloud")
-    # sun
-    sun = Particles(1)
-    sun.mass = 1 | units.MSun
-    sun.position = (26660*1.02, 0, 0) | units.lightyear
-    sun.velocity = (0, 250*.98, 0) | units.kms
 
     # Oort cloud
     beet_cloud = ic.new_isotropic_cloud(number_of_particles=n_oort_objects,
@@ -440,9 +443,10 @@ if __name__ in '__main__':
     #                 detection_radius=detection_radius)
 
     run_simulation(end_time=250.|units.Myr,
-                    timestep_pre_sn=0.001|units.Myr,
+                    timestep_pre_sn=0.1|units.Myr,
                     timestep_after_sn=.1|units.Myr,
                     plot_interval=.1|units.Myr,
-                    n_oort_objects=10_000)
-    make_plots(focus='sun', zoom=0.02, mask_outside_detection_radius=True, start_plots_at_num=180, detection_radius=detection_radius)
+                    n_oort_objects=100)
+
+    make_plots(focus='galaxy', zoom=12, mask_outside_detection_radius=True, start_plots_at_num=0, detection_radius=detection_radius)
     make_movie()
