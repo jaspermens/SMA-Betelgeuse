@@ -17,10 +17,12 @@ def get_initial_posvel_beet():
     # beet
     beet_ra = "05h55m10.30536s" 
     beet_dec = "+07d24m25.4304s"
+    # 27.54
     beet_pm_ra_cosdec = 27.54*u.mas/u.yr
-    beet_pm_dec = 11.30*u.mas/u.yr
+    # 11.3 are normal
+    beet_pm_dec = 11.3*u.mas/u.yr
     beet_rad_vel = 21.91*u.km/u.s
-
+    # 168 is normal
     beet_sun_distance = 168*u.pc
 
     beet_sc = SkyCoord(ra = beet_ra, 

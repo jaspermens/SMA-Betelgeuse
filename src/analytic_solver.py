@@ -160,6 +160,52 @@ def detect_encounters(cloud, sun, model_time, detections, detection_keys, detect
         cloud.remove_particle(cloud[cpi])
         detect_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius)
 
+def get_beet_posrel_to_sun(phi, d = 168):
+    '''
+    Parameters
+    ----------
+    phi : float
+        angle in radians. Beet's angle to the sun
+    d : float, optional
+        sun beet distance in parsec. The default is 168.
+
+    Returns
+    -------
+    Beet_x : float
+        beet's x distance to the sun in parsec.
+    Beet_y : float
+        beet's y distance to the sun in parsec.
+
+    '''
+    sign = 1
+    if np.abs(phi)< np.pi /2:
+        # beet is further away from the GC than the sun
+        sign = -1
+    Beet_x = sign*np.cos(phi) * d
+    Beet_y = np.sin(phi) * d
+    return Beet_x, Beet_y
+
+def get_theta(Beet_x, Beet_y, sun_x):
+    '''
+    
+    Parameters
+    ----------
+    Beet_x : float
+        Beet's X distance from the sun
+    Beet_y : Beet's distance from the sun
+        Beet's Y distance from the sun.
+    sun_x : float
+        Sun's distance from the galactic centre.
+
+    Returns
+    -------
+    theta, Beet's polar angle with the galactic centre
+
+    '''
+    tan_theta = (Beet_x + sun_x) / Beet_y
+    theta = np.arctan(tan_theta)
+    return theta
+
 
 def run_simulation(end_time = 100 | units.Myr, 
                     timestep_pre_sn = 1e-3 | units.Myr,
@@ -167,6 +213,7 @@ def run_simulation(end_time = 100 | units.Myr,
                     timestep_detection = 0.1 | units.Myr,
                     detection_time = 220. | units.Myr,
                     n_oort_objects = 100,
+                    phi = np.pi/12,
                     detection_radius = 1. | units.pc,
                     plot_interval = 1. | units.Myr):
 
@@ -179,19 +226,45 @@ def run_simulation(end_time = 100 | units.Myr,
 
     pk.dump(run_params, open('run_params.pk', 'wb'))
     
+    
+    # Make static MWG potential
+    MWG = MilkyWay_galaxy()
+    
     # sun
     sun = Particles(1)
     sun.mass = 1 | units.MSun
-    sun.position = (26660, 0, 0) | units.lightyear
-    sun.velocity = (0, 250, 0) | units.kms
+    # Values from https://ui.adsabs.harvard.edu/abs/1996AJ....111..794K/abstract
+    
+    sun_to_GC = -8400 # Suns distance to galactic centre [parsec]
+    sun.position = (sun_to_GC, 0, 0) | units.pc
+    sun_vel = MWG.vel_circ(sun.x,sun.y).value_in(units.kms)
+    sun.velocity = (0, sun_vel, 0) | units.kms
 
     # beet
     beet = Particles(1)
     beet.mass = 21 | units.MSun
-    p, v = get_initial_posvel_beet()
-    beet.position = (p|units.pc) + sun.position
-    beet.velocity = (v|units.kms) + sun.velocity
-
+    beet_rel_x, beet_rel_y= get_beet_posrel_to_sun(phi, d=135)
+    
+    # do a linspace and iterate over ALL of the combinations
+    beet.position = ((beet_rel_x, beet_rel_y,0)|units.pc) + sun.position
+    beet_vel = MWG.vel_circ(beet.x,beet.y).value_in(units.kms)
+    theta = get_theta(beet_rel_x, beet_rel_y, sun_to_GC)
+    beet_vel = MWG.vel_circ(beet.x,beet.y).value_in(units.kms)
+    beet.velocity = ( ( beet_vel*np.cos(theta), beet_vel*np.abs(np.sin(theta)) , 0)|units.kms)
+    # Plot to check
+    # fig, ax = plt.subplots(1, figsize=(4,4), dpi=300)
+    # pc_to_kms = 3.086e+13
+    # plt.xlim(sun.x.value_in(units.pc)-200,sun.x.value_in(units.pc)+200)
+    # plt.ylim(sun.y.value_in(units.pc)-200,sun.y.value_in(units.pc)+200)
+    # ax.scatter(sun.x.value_in(units.pc), sun.y.value_in(units.pc), color='goldenrod')
+    # ax.scatter(beet.x.value_in(units.pc), beet.y.value_in(units.pc), color='maroon')
+    # ax.set_title('phi: ' + str(np.round(phi,3)))
+    # # ax.arrow(sun.x.value_in(units.pc), sun.y.value_in(units.pc),
+    # #          1,1)
+    # ax.arrow(-8400,0,0,sun_vel[0]/2)
+    # ax.arrow(beet[0].x.value_in(units.pc), beet[0].y.value_in(units.pc),
+    #          beet[0].vx.value_in(units.kms)/2, beet[0].vy.value_in(units.kms)/2)
+    #         # sun.vx.value_in(units.kms), sun.vy.value_in(units.kms))
     print("Initialising and pre-evolving SeBa")
     beet_seba = SeBa()
     beet_seba.set_metallicity(0.024) # From Dolan & Mathews, https://arxiv.org/pdf/1406.3143v2.pdf
@@ -218,8 +291,7 @@ def run_simulation(end_time = 100 | units.Myr,
     OORT = test_particles(beet_cloud, timestep_pre_sn)
     SUN = test_particles(sun, timestep_pre_sn)    
 
-    # Make static MWG potential
-    MWG = MilkyWay_galaxy()
+
 
     print("Building bridges")
     # Mix it all together with bridge
@@ -274,9 +346,9 @@ def run_simulation(end_time = 100 | units.Myr,
 
     print("speedy loop:")
     # Longest and fastest loop. High timestep, no collision detection needed.
-    if end_time < detection_time:
-        detection_time = end_time
-    while(model_time < detection_time):
+    # if end_time < detection_time:
+    #     detection_time = end_time
+    while(model_time < end_time):
         model_time += timestep_after_sn
         milky_way.evolve_model(model_time)
         
@@ -284,7 +356,7 @@ def run_simulation(end_time = 100 | units.Myr,
         if (last_plot_time + plot_interval <= model_time):
             
             # Progress check
-            bar_x_out_of_y(model_time.in_(detection_time.unit), detection_time, text='')
+            bar_x_out_of_y(model_time.in_(detection_time.unit), end_time, text='')
             
             channel_out.copy()
             plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr',
@@ -293,48 +365,60 @@ def run_simulation(end_time = 100 | units.Myr,
                             sun.position.value_in(units.kpc)[0]))
 
             last_plot_time = model_time
-
+        # Distance between beet and sun
+        dist = np.linalg.norm(sun.position.value_in(units.pc) - beet.position.value_in(units.pc))
+        if dist < 250 and model_time > 0 | units.Myr : # in parsec
+        # collision detection
+            channel_out.copy()
+            channel_out_sun.copy()          # I don't know if these two do anything
+            channel_out_beet.copy()         # It runs just as well without them two channels
+            detect_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
+            channel_in.copy()
+            bar_x_out_of_y((model_time).in_(end_time.unit), (end_time), text=f'{len(detections)} detections')
     duration = datetime.now() - start_time
     print(f'Integration complete! Duration: {duration}')
     start_time = datetime.now()
+    
 
+    
     # Timestep changes
     OORT.change_timestep(timestep_detection)
     BEET.change_timestep(timestep_detection)
     SUN.change_timestep(timestep_detection)
     milky_way.timestep = timestep_detection
 
-    print("detection phase:")
+    #print("detection phase:")
     # Timestep limited by relative velocity and detection radius
-    while (model_time < end_time):
-        # Progress check
-        bar_x_out_of_y((model_time).in_(end_time.unit), (end_time), text=f'{len(detections)} detections')
+    # while (model_time < end_time):
+    #     # Progress check
+    #     bar_x_out_of_y((model_time).in_(end_time.unit), (end_time), text=f'{len(detections)} detections')
 
-        model_time += timestep_detection
-        milky_way.evolve_model(model_time)
+    #     model_time += timestep_detection
+    #     milky_way.evolve_model(model_time)
 
-        # collision detection
-        channel_out.copy()
-        channel_out_sun.copy()          # I don't know if these two do anything
-        channel_out_beet.copy()         # It runs just as well without them two channels
-        detect_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
-        channel_in.copy()
+    #     # collision detection
+    #     channel_out.copy()
+    #     channel_out_sun.copy()          # I don't know if these two do anything
+    #     channel_out_beet.copy()         # It runs just as well without them two channels
+    #     detect_encounters(beet_cloud, sun, model_time, detections, detection_keys, detection_radius)
+    #     channel_in.copy()
 
-        #  Saving data for future plotting
-        if (last_plot_time + plot_interval <= model_time):
+    #     #  Saving data for future plotting
+    #     if (last_plot_time + plot_interval <= model_time):
             
-            plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr',
-                            BEET.particles[0].position.value_in(units.kpc),
-                            beet_cloud.position.value_in(units.kpc),
-                            sun.position.value_in(units.kpc)[0]))
+    #         plotdata.append((str(model_time.value_in(units.Myr)) + ' Myr',
+    #                         BEET.particles[0].position.value_in(units.kpc),
+    #                         beet_cloud.position.value_in(units.kpc),
+    #                         sun.position.value_in(units.kpc)[0]))
 
-            last_plot_time = model_time
-    bar_x_out_of_y((model_time).in_(end_time.unit), (end_time), text=f'{len(detections)} detections')
+    #         last_plot_time = model_time
+    # bar_x_out_of_y((model_time).in_(end_time.unit), (end_time), text=f'{len(detections)} detections')
 
-    duration = datetime.now() - start_time
-    print(f'Integration complete! Duration: {duration}')
+    # duration = datetime.now() - start_time
+    # print(f'Integration complete! Duration: {duration}')
     
-    pk.dump(plotdata, open('last_run_plotdata.pk', 'wb'))
+
+    pk.dump(plotdata, open(str(np.round(phi,3))+'_run_plotdata.pk', 'wb'))
 
     if len(detections) > 0:
         detection_df = pd.DataFrame(detections)
@@ -343,12 +427,14 @@ def run_simulation(end_time = 100 | units.Myr,
         pk.dump(detection_df, open('detections.pk', 'wb'))
     
 
-def make_plots(plotdata=None, focus="beet", zoom=None, mask_outside_detection_radius=False, start_plots_at_num=0, detection_radius=1|units.pc):
+def make_plots(plotdata=None, focus="beet", zoom=None, mask_outside_detection_radius=False, 
+               start_plots_at_num=0, detection_radius=1|units.pc,
+               filename = 'last_run_plotdata.pk' ):
     import matplotlib.patches as patches
     import mpl_toolkits.mplot3d.art3d as art3d
     print("Generating figures")
     if not plotdata:
-        plotdata = pk.load(open('last_run_plotdata.pk', 'rb'))
+        plotdata = pk.load(open( filename, 'rb'))
     
     focus_options = ['beet', 'sun', 'galaxy']
     if not focus in focus_options:
@@ -427,26 +513,29 @@ def make_plots(plotdata=None, focus="beet", zoom=None, mask_outside_detection_ra
 
 
 
-def make_movie():
-    command = "ffmpeg -y -framerate 25 -i ../figures/fig_%3d.png -c:v libx264 -hide_banner -vb 20M -loglevel panic -pix_fmt yuv420p -filter:v 'setpts=2*PTS' -y ../figures/movie.mp4"
+def make_movie(name):
+    command = "ffmpeg -y -framerate 25 -i ../figures/fig_%3d.png -c:v libx264 -hide_banner -vb 20M -loglevel panic -pix_fmt yuv420p -filter:v 'setpts=2*PTS' -y ../figures/"+name+".mp4"
     os.system(command)
 
 
 if __name__ in '__main__':
-    detection_radius = 1|units.pc
-    # run_simulation(end_time=(240|units.Myr), 
-    #                 detection_time=(220|units.Myr),
-    #                 timestep_pre_sn=(0.001|units.Myr),
-    #                 timestep_after_sn = (.01|units.Myr),
-    #                 timestep_detection = (0.01 | units.Myr),
-    #                 n_oort_objects=10_000,
-    #                 detection_radius=detection_radius)
-
-    run_simulation(end_time=250.|units.Myr,
-                    timestep_pre_sn=0.1|units.Myr,
-                    timestep_after_sn=.1|units.Myr,
-                    plot_interval=.1|units.Myr,
-                    n_oort_objects=100)
-
-    make_plots(focus='galaxy', zoom=12, mask_outside_detection_radius=True, start_plots_at_num=0, detection_radius=detection_radius)
-    make_movie()
+    detection_radius = 1 |units.pc
+    # real is 20
+    phi_real = -30 * np.pi/180
+    width_real = 4.5 * np.pi/180
+    width = np.pi/3
+    phi_range = np.linspace(phi_real-width_real , phi_real+width_real, num = 6)
+    # real phi = -20 deg since l = 199
+   # for phi in phi_range:
+    run_simulation(end_time=75.|units.Myr,
+                    timestep_pre_sn=0.001|units.Myr,
+                    timestep_after_sn=1|units.Myr,
+                    plot_interval=1 |units.Myr,
+                    phi=phi_range[0],
+                    n_oort_objects=1_000_000,
+                    detection_radius = detection_radius)
+    # name = str(np.round(phi_range[0],3))
+    # make_plots(focus='sun', zoom=0.1, mask_outside_detection_radius=True, 
+    #             start_plots_at_num=0, detection_radius=detection_radius,
+    #             filename =name+'_run_plotdata.pk')
+    # make_movie(name)

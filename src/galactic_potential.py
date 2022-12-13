@@ -82,6 +82,24 @@ class MilkyWay_galaxy(object):
 
         return ax, ay, az
     
+    def vel_circ(self, x , y ):
+        z = 0 | units.kpc 
+        r = (x**2+y**2+z**2)**0.5 # radial coord. of point
+        b1 = 0.3873 |units.kpc
+        a2 = 5.31 |units.kpc
+        b2 = 0.25 |units.kpc
+        a3 = 12.0 |units.kpc
+    
+        rdphi_b = constants.G*self.Mb*r**2/(r**2+b1**2)**1.5
+        rdphi_d = constants.G*self.Md*r**2/(r**2+(a2+(z**2+b2**2)**0.5)**2 )**1.5
+        rdphi_h = constants.G*self.Mh*(r/a3)**0.02*r/(a3**2*(1+(r/a3)**1.02))
+    
+        vel_circb = rdphi_b
+        vel_circd = rdphi_d
+        vel_circh = rdphi_h
+
+        return (vel_circb + vel_circd + vel_circh)**0.5 
+    
 #%% small simulation with beet and the sun
 
 #%%
