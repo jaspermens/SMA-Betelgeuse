@@ -3,9 +3,9 @@
 """
 Created on Wed Nov 30 11:26:52 2022
 
-@author: konstantinos
+@author: Konstantinos
 
-postproccssing
+postproccessing
 """
 
 import numpy as np
@@ -14,6 +14,7 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt
 from amuse.lab import units
 import random
+import pickle as pk
 
 #%% Create dummy data
 # Dataframe [key, time, x, y, z, vx, vy, vz]
@@ -52,15 +53,15 @@ data = [ keys, times, xs, ys, zs, vxs, vys, vzs]
 df = pd.DataFrame(data, index=names).T
 #%% Stats
 # kde which works
-xy = np.vstack( [df['x'].to_numpy(dtype=np.float32),
-                 df['y'].to_numpy(dtype=np.float32)])
-# instantiate and fit the KDE model
-kde = stats.gaussian_kde(xy)
-xrange = np.linspace(0,10, num=10_000)
-yrange = np.linspace(0,1,num=10_000)
-ranges = np.vstack([xrange, yrange])
-results = np.reshape(kde(ranges) , (100,100))
-plt.imshow(results)
+# xy = np.vstack( [df['x'].to_numpy(dtype=np.float32),
+#                  df['y'].to_numpy(dtype=np.float32)])
+# # instantiate and fit the KDE model
+# kde = stats.gaussian_kde(xy)
+# xrange = np.linspace(0,10, num=10_000)
+# yrange = np.linspace(0,1,num=10_000)
+# ranges = np.vstack([xrange, yrange])
+# results = np.reshape(kde(ranges) , (100,100))
+# plt.imshow(results)
 
 
 

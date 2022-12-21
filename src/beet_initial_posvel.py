@@ -7,7 +7,6 @@ Created on Fri Dec  9 17:19:56 2022
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 from amuse.lab import units
