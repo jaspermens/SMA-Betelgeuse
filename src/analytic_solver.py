@@ -70,7 +70,7 @@ def detect_encounters(cloud, sun, model_time, detections, detection_keys, detect
         closest = cloud[cpi]
         relvx, relvy, relvz = closest.velocity - sun.velocity[0]
         relx, rely, relz = relpos[cpi]
-        detections.append([closest.key, model_time.value_in(units.Myr), relx.value_in(units.au), rely.value_in(units.au), relz.value_in(units.au), relvx.value_in(units.kms), relvy.value_in(units.kms), relvz.value_in(units.kms)])
+        detections.append([closest.key, model_time, relx, rely, relz, relvx, relvy, relvz])
         detection_keys.append(closest.key)
         cloud.remove_particle(cloud[cpi])
         detect_encounters(cloud, sun, model_time, detections, detection_keys, detection_radius)
@@ -410,7 +410,7 @@ if __name__ in '__main__':
     # real phi = -20 deg since l = 199
     # for phi in phi_range:
     phi = -34.5 * np.pi/180
-    run_name="10k_new_det_format"
+    run_name="milly_4"
     outdir = f"../runs/{run_name}"
     if not os.path.exists(outdir):
         os.system(f'mkdir {outdir}')
@@ -419,14 +419,14 @@ if __name__ in '__main__':
     
     run_simulation(end_time=75.|units.Myr,
                     timestep_pre_sn=0.001|units.Myr,
-                    timestep_after_sn=1|units.Myr,
+                    timestep_after_sn=.1|units.Myr,
                     timestep_detection=.1|units.Myr,
                     plot_interval=1|units.Myr,
                     phi=phi,
-                    n_oort_objects=10_000,
+                    n_oort_objects=100_000,
                     detection_radius = detection_radius,
                     outdir=outdir,
-                    random_seed=3)
+                    random_seed=4)
 
     # make_plots(focus='sun', zoom=0.01, mask_outside_detection_radius=True, 
     #             start_plots_at_num=20, detection_radius=detection_radius,
