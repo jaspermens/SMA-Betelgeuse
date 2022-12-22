@@ -1,7 +1,7 @@
 from amuse.lab import units, constants
 
 
-class star:
+class Star:
     def __init__(self, 
                 particles, 
                 timestep, 
