@@ -9,45 +9,36 @@ Detection analytics
 
 import numpy as np
 import pandas as pd
-import scipy.stats as stats
 import matplotlib.pyplot as plt
-from amuse.lab import units, constants
-import pickle as pk 
+from amuse.lab import units
+from read_detections import get_detections_from_runs
+from lonely_planet import run_lonely_planet
 
 
-def get_detections_from_run(run_name):
-    d =  pk.load(open(f'../runs/{run_name}/detections.pk', 'rb'))
-    for v in ('vx', 'vy', 'vz'):
-        d[v] = [vel.value_in(units.kms) for vel in d[v]]
-
-    for p in ('x', 'y', 'z'):
-        d[p] = [pos.value_in(units.au)/1e3 for pos in d[p]]
-
-    d.time = [t.value_in(units.Myr) for t in d.time]
-
-    return d
-
-
-def plot_det_relvel(det):
-    relvel = np.sqrt((det.vx**2 + det.vy**2 + det.vz**2))
-
-    relvel.plot.hist(figsize=[6,4])
+def plot_relvel(det):
+    det.relvel.plot.hist(figsize=[6,4], bins=100)
     plt.title("Relative velocities of detections wrt the Sun")
     plt.xlabel('relative velocity [km/s]')
     plt.show()
 
 
-def plot_det_relpos(det):
-    relvel = np.sqrt((det.x**2 + det.y**2 + det.z**2))
-
-    relvel.plot.hist(figsize=[6,4])
+def plot_relpos(det):
+    det.relpos.plot.hist(figsize=[6,4], bins=100)
     plt.title("Distances between the detection point and the Sun")
     plt.xlabel('distance [10^3 au]')
     plt.show()
 
 
-def plot_relpos_kde(det):
-    det.plot.hexbin(x='x', y='y', gridsize=20)
+def plot_relpos_hex(det):
+    det.plot.hexbin(x='x', y='y', gridsize=20, cmap='viridis')
+    plt.title("Relative positions of detected particles")
+    plt.xlabel("x [$10^3$ au]")
+    plt.ylabel("y [$10^3$ au]")
+    plt.show()
+
+
+def plot_relvel_hex(det):
+    det.plot.hexbin(x='x', y='y', C='vz', gridsize=20, cmap='viridis')
     plt.title("Relative positions of detected particles")
     plt.xlabel("x [$10^3$ au]")
     plt.ylabel("y [$10^3$ au]")
@@ -74,27 +65,70 @@ def get_orbital_elements(det):
     return els
 
 
-def plot_min_sep(det):
+def aphelion_cdf_kep(det):    
+    """
+    Produces a cumulative histogram of the analytical (keplerian) aphelia
+    """
     orbels = get_orbital_elements(det)
 
     smas = [orbels[i][0].value_in(units.au) for i in range(len(orbels))]
     eccs = [orbels[i][1] for i in range(len(orbels))]
 
     min_seps = pd.Series([float(sma) * (1.-float(ecc)) for sma, ecc in zip(smas, eccs)])
-    print(min_seps)
-    min_seps.plot.kde()
+    # print(min_seps)
+    # min_seps.plot.kde()
+    min_seps.plot.hist(cumulative=True, bins=100, density=True)
+    plt.title('CDF of keplerian periapsis')
     plt.axvline((1|units.pc).value_in(units.au), ls='--')
-    plt.title("KDE for the keplerian periapsis")
+    plt.ylabel('Cum. probability')
     plt.xlabel("Periapsis distance [au]")
+    seps = np.arange(0, 206_000, 100)
+    plt.plot(seps, 2.37953599e-11*np.power(seps,2), 
+                    label='quadratic fit, $P=2.38\cdot10^{-11}a_{p}^2$')
+    plt.legend()
+    plt.show() 
+
+
+def aphelion_cdf_lp(detections):
+    """
+    Produces a cumulative histogram of the aphelion distances using lonely planet data
+    """
+    _, d = run_lonely_planet(detections_df=detections)
+    seps = np.arange(0, 206_000, 100)
+
+    print(len(d[d < 1e3]))
+    d.plot.hist(bins=100, cumulative=True, density=True)
+
+    plt.axvline((1|units.pc).value_in(units.au), ls='--', label='1 parsec')
+    
+    plt.plot(seps, 2.37953599e-11*np.power(seps,2), 
+                    label='quadratic fit, $P=2.38\cdot10^{-11}a_{p}^2$')
+    
+    plt.title('Cumulative histogram of numerical periapsis distance')
+    plt.xlabel("Periapsis distance [au]")
+    plt.ylabel('Cum. probability')
+    
+    plt.legend()
+    plt.show() 
+
+
+def arrival_time_histogram_lp(detections):
+    """
+    Produces a histogram of the aphelion times using lonely planet data
+    """
+    t, _ = run_lonely_planet(detections_df=detections)
+
+    t.plot.hist(bins=50)
+    plt.title("Histogram of arrival time")
+    plt.ylabel("Frequency")
+    plt.xlabel("Arrival time (Myr)")
     plt.show()
-
-
-def combine_detections_from_runs(*runs):
-    return pd.concat([get_detections_from_run(run) for run in runs])
         
 
 if __name__ in '__main__':
     run_name ='milly_1'
+
     # detections= get_detections_from_run(run_name)
-    detections = combine_detections_from_runs('milly_1', 'milly_2', 'milly_3')
-    plot_relpos_kde(detections)
+    detections = get_detections_from_runs(*[f'milly_{n}' for n in range(1,12)])
+    arrival_time_histogram_lp(detections)
+    
