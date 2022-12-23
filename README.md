@@ -32,15 +32,15 @@ There are plenty of interesting ideas that we plan to implement in future.
 3. Orion Arm's most wanted. This simulation should be generalizable to any star in our galactic neighborhood, find out which one poses the greatest threat to Earth.
 
 ## Project log
-** Week 0:** (Oct 24 - Oct 30) Initial idea, presentation and project proposal\
-** Week 1:** (Oct 31 - Nov 6) `beet_test.py` Initializing the problem, scaling the Oort cloud.\
-** Week 2:** (Nov 7 - Nov 13) `galactic_potential.py` Implementing the galactic potential.\
-** Week 3:** (Nov 14 - Nov 20) Meeting with Alex de Koter, bridging between galactic potential and beet system. Creation of this very nice `README`.\
-** Week 4:** (Nov 21 - Nov 27) Stopped using `Hermite`, made a custom class for integrating the orbits around beet analytically. \
-** Week 5:** (Nov 28 - Dec 4) Ran some simulations with the custom class and made some movies with simple parameter values.\
-** Week 6:** (Dec 5 - Dec 11) Modified initial conditions, included inclination angle of Betelgeuse with the Sun, added code for statistics.\
-** Week 7:** (Dec 12 - Dec 19) Added a robust code for storing and plotting the simulation data. Final presentation happened (and Luigi became everyone's favourite:))\
-** Week 8:** (Dec 20 - Dec 23) Final fine tuning, preparation of the report, code cleaning.\
+**Week 0:** (Oct 24 - Oct 30) Initial idea, presentation and project proposal\
+**Week 1:** (Oct 31 - Nov 6) `beet_test.py` Initializing the problem, scaling the Oort cloud.\
+**Week 2:** (Nov 7 - Nov 13) `galactic_potential.py` Implementing the galactic potential.\
+**Week 3:** (Nov 14 - Nov 20) Meeting with Alex de Koter, bridging between galactic potential and beet system. Creation of this very nice `README`.\
+**Week 4:** (Nov 21 - Nov 27) Stopped using `Hermite`, made a custom class for integrating the orbits around beet analytically. \
+**Week 5:** (Nov 28 - Dec 4) Ran some simulations with the custom class and made some movies with simple parameter values.\
+**Week 6:** (Dec 5 - Dec 11) Modified initial conditions, included inclination angle of Betelgeuse with the Sun, added code for statistics.\
+**Week 7:** (Dec 12 - Dec 19) Added a robust code for storing and plotting the simulation data. Final presentation happened (and Luigi became everyone's favourite:))\
+**Week 8:** (Dec 20 - Dec 23) Final fine tuning, preparation of the report, code cleaning.\
 
 ## Tutorial
 The script that runs the main simulation is `analytic_solver.py` in the `/src` directory. There are three functions of interest: `run_simulation()`, `make_plots()` and `make_movie()`.
