@@ -318,9 +318,9 @@ def run_simulation(end_time = 100 | units.Myr,
                 bar_x_out_of_y(model_time.in_(end_time.unit).round(1), end_time, text='')
             
             # Check if we should be detecting:
-            dist_sun_beet = (sun.position - beet.position).lengths()[0].value_in(units.pc)
+            dist_sun_closest = (sun.position - beet_cloud.position).lengths().min()
             # if sun and beet are close, then start checking for encounters and change timestep
-            if dist_sun_beet < 75: # in parsec. 
+            if dist_sun_closest < 20 | units.pc: 
                 if not detecting:
                     detecting = True
                     update_all_timesteps(timestep_detection)
