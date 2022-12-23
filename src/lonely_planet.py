@@ -40,6 +40,7 @@ def run_lonely_planet(detections_df: pd.DataFrame) -> tuple([pd.Series, pd.Serie
     asteroids.mass = 0|units.MSun
     asteroids.position = [(x, y, z) | units.au for x, y, z in 
                             zip(detections_df.x, detections_df.y, detections_df.z)]
+    asteroids.position *= 10**3 # Needed because of how detections are saved
     asteroids.velocity = [(vx, vy, vz) | units.kms for vx, vy, vz in 
                             zip(detections_df.vx, detections_df.vy, detections_df.vz)]
 

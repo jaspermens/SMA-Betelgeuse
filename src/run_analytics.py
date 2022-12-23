@@ -82,7 +82,7 @@ def plot_relvel(det):
     plt.yticks(fontsize = 18)
     plt.xlim(3,3.5)
     plt.show()
-    plt.savefig('relvel.pdf')
+    plt.savefig('relvelo.pdf')
 
 def plot_relpos_hex(det):
     # Black background
@@ -111,14 +111,14 @@ def aphelion_cdf_lp(detections):
     """
     _, d = run_lonely_planet(detections_df=detections)
     seps = np.arange(0, 206_000, 100)
-
+    plt.rcParams['lines.linewidth'] = 2
     print(len(d[d < 1e3]))
     d.plot.hist(bins=100, cumulative=True, density=True, color='maroon')
 
     plt.axvline((1|units.pc).value_in(units.au), ls='--', label='1 parsec',
-                color='palegreen')
+                color='yellow')
     
-    plt.plot(seps, 2.37953599e-11*np.power(seps,2),  color='mediumslateblue',
+    plt.plot(seps, 2.37953599e-11*np.power(seps,2),  color='cyan',
                     label='quadratic fit, $P=2.38\cdot10^{-11}a_{p}^2$')
     
     plt.title('Cumulative histogram of numerical periapsis distance',
@@ -128,7 +128,7 @@ def aphelion_cdf_lp(detections):
     plt.xticks(fontsize = 18)
     plt.yticks(fontsize = 18)
     plt.legend(loc='best', fontsize=20)
-    #plt.savefig('cdf.pdf')
+    plt.savefig('cdf.pdf')
 
 def arrival_time_histogram_lp(detections):
     """
@@ -149,8 +149,8 @@ if __name__ in '__main__':
     detections = get_detections_from_runs(*[f'milly_{n}' for n in range(1,26)])
     # plt.rcParams.update(params)
     plt.rcParams["figure.figsize"] = (10,8)
-   # plot_relvel(detections)
+    plot_relvel(detections)
    # plot_relpos_hex(detections)
-    aphelion_cdf_lp(detections)
-   # arrival_time_histogram_lp(detections)
+   # aphelion_cdf_lp(detections)
+    #arrival_time_histogram_lp(detections)
     
