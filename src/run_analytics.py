@@ -13,38 +13,10 @@ import matplotlib.pyplot as plt
 from amuse.lab import units
 from read_detections import get_detections_from_runs
 from lonely_planet import run_lonely_planet
+import colorcet as cc
+fire = cc.fire
 
-
-def plot_relvel(det):
-    det.relvel.plot.hist(figsize=[6,4], bins=100)
-    plt.title("Relative velocities of detections wrt the Sun")
-    plt.xlabel('relative velocity [km/s]')
-    plt.show()
-
-
-def plot_relpos(det):
-    det.relpos.plot.hist(figsize=[6,4], bins=100)
-    plt.title("Distances between the detection point and the Sun")
-    plt.xlabel('distance [10^3 au]')
-    plt.show()
-
-
-def plot_relpos_hex(det):
-    det.plot.hexbin(x='x', y='y', gridsize=20, cmap='viridis')
-    plt.title("Relative positions of detected particles")
-    plt.xlabel("x [$10^3$ au]")
-    plt.ylabel("y [$10^3$ au]")
-    plt.show()
-
-
-def plot_relvel_hex(det):
-    det.plot.hexbin(x='x', y='y', C='vz', gridsize=20, cmap='viridis')
-    plt.title("Relative positions of detected particles")
-    plt.xlabel("x [$10^3$ au]")
-    plt.ylabel("y [$10^3$ au]")
-    plt.show()
-
-
+#%% Out of report
 def plot_arrival_time(det):
     det.time.plot.hist(figsize=[6,4])
     plt.title("Histogram of arrival time")
@@ -88,6 +60,50 @@ def aphelion_cdf_kep(det):
     plt.legend()
     plt.show() 
 
+def plot_relpos(det):
+    det.relpos.plot.hist(figsize=[6,4], bins=100)
+    plt.title("Distances between the detection point and the Sun")
+    plt.xlabel('distance [10^3 au]')
+    plt.show()
+
+def plot_relvel_hex(det):
+    det.plot.hexbin(x='x', y='y', C='vz', gridsize=20, cmap='viridis')
+    plt.title("Relative positions of detected particles")
+    plt.xlabel("x [$10^3$ au]")
+    plt.ylabel("y [$10^3$ au]")
+    plt.show()
+#%% In the report
+def plot_relvel(det):
+    det.relvel.plot.hist( bins=100, color='maroon')
+    plt.title("Relative velocities of arriving Oort Objects", fontsize=27, pad=10)
+    plt.xlabel('Relative Velocity [Km/s]', fontsize=20)
+    plt.ylabel('Frequency', fontsize=20)
+    plt.xticks(fontsize = 18)
+    plt.yticks(fontsize = 18)
+    plt.xlim(3,3.5)
+    plt.show()
+    plt.savefig('relvel.pdf')
+
+def plot_relpos_hex(det):
+    # Black background
+    xs = [-250, -250, 250, 250]
+    ys = [-250, 250, 250, -250]
+    plt.fill(xs, ys, color='k')
+    # Plot
+    plt.hexbin(x='x', y='y', 
+               gridsize=50, cmap = 'cet_fire',data=det)
+    #det.plot.hexbin(x='x', y='y', gridsize=50, cmap='cet_fire')
+    plt.title("Relative positions of arriving Oort Objects", fontsize=27, pad=10)
+    plt.ylabel("y [$10^3$ AU]", fontsize=20)
+    plt.xlabel("x [$10^3$ AU]", fontsize=20)
+    plt.xticks(fontsize = 18)
+    plt.yticks(fontsize = 18)
+    cb = plt.colorbar()
+    for t in cb.ax.get_yticklabels():
+     t.set_fontsize(18)
+    plt.xlim(-220,180)
+    plt.ylim(-215,190)
+    plt.savefig('relpos.pdf')
 
 def aphelion_cdf_lp(detections):
     """
@@ -97,20 +113,22 @@ def aphelion_cdf_lp(detections):
     seps = np.arange(0, 206_000, 100)
 
     print(len(d[d < 1e3]))
-    d.plot.hist(bins=100, cumulative=True, density=True)
+    d.plot.hist(bins=100, cumulative=True, density=True, color='maroon')
 
-    plt.axvline((1|units.pc).value_in(units.au), ls='--', label='1 parsec')
+    plt.axvline((1|units.pc).value_in(units.au), ls='--', label='1 parsec',
+                color='palegreen')
     
-    plt.plot(seps, 2.37953599e-11*np.power(seps,2), 
+    plt.plot(seps, 2.37953599e-11*np.power(seps,2),  color='mediumslateblue',
                     label='quadratic fit, $P=2.38\cdot10^{-11}a_{p}^2$')
     
-    plt.title('Cumulative histogram of numerical periapsis distance')
-    plt.xlabel("Periapsis distance [au]")
-    plt.ylabel('Cum. probability')
-    
-    plt.legend()
-    plt.show() 
-
+    plt.title('Cumulative histogram of numerical periapsis distance',
+              fontsize=27, pad=10)
+    plt.xlabel("Periapsis distance [AU]", fontsize=20)
+    plt.ylabel('Cum. probability', fontsize=20)
+    plt.xticks(fontsize = 18)
+    plt.yticks(fontsize = 18)
+    plt.legend(loc='best', fontsize=20)
+    #plt.savefig('cdf.pdf')
 
 def arrival_time_histogram_lp(detections):
     """
@@ -118,17 +136,21 @@ def arrival_time_histogram_lp(detections):
     """
     t, _ = run_lonely_planet(detections_df=detections)
 
-    t.plot.hist(bins=50)
-    plt.title("Histogram of arrival time")
-    plt.ylabel("Frequency")
-    plt.xlabel("Arrival time (Myr)")
-    plt.show()
+    t.plot.hist(bins=50, color='maroon')
+    plt.title("Histogram of arrival time", fontsize = 27, pad=10)
+    plt.ylabel("Frequency", fontsize=20)
+    plt.xlabel("Arrival Time (Myr)", fontsize=20)
+    plt.xticks(fontsize = 18)
+    plt.yticks(fontsize = 18)
+    plt.savefig('arrival_time.pdf')
         
 
 if __name__ in '__main__':
-    run_name ='milly_1'
-
-    # detections= get_detections_from_run(run_name)
-    detections = get_detections_from_runs(*[f'milly_{n}' for n in range(1,12)])
-    arrival_time_histogram_lp(detections)
+    detections = get_detections_from_runs(*[f'milly_{n}' for n in range(1,26)])
+    # plt.rcParams.update(params)
+    plt.rcParams["figure.figsize"] = (10,8)
+   # plot_relvel(detections)
+   # plot_relpos_hex(detections)
+    aphelion_cdf_lp(detections)
+   # arrival_time_histogram_lp(detections)
     
