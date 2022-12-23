@@ -5,12 +5,10 @@ class Star:
     def __init__(self, 
                 particles, 
                 timestep, 
-                mdot=(0.1|units.MSun / units.yr),
                 stellar_evo_code=None):
         self.particles = particles
         self.model_time = 0 | units.yr
         self.timestep = timestep
-        self.mdot = mdot
 
         self.stellar = stellar_evo_code
         if self.stellar:
@@ -38,11 +36,6 @@ class Star:
         
         return ax, ay, az
 
-    def update_mass_linear(self):
-        # self.M = self.M - 0.5 | units.MSun
-        if self.particles.mass > (0 | units.MSun):
-            self.particles.mass -= self.mdot * self.timestep
-
     def update_mass(self):
         if self.stellar:
             self.stellar.evolve_model(self.stellar.model_time + self.timestep)
@@ -59,26 +52,4 @@ class Star:
             self.update_mass()
             self.model_time += self.timestep
         
-
-class test_particles:
-    def __init__(self,
-                 particles,
-                 timestep):
-        self.particles = particles
-        self.timestep = timestep
-        self.model_time = 0 | units.yr
-        
-    def update_pos(self):
-        self.particles.x += self.particles.vx * self.timestep
-        self.particles.y += self.particles.vy * self.timestep
-        self.particles.z += self.particles.vz * self.timestep
-        
-    def get_gravity_at_point(self, eps, x, y, z):
-        return (0, 0, 0) | (units.m * units.s**(-2))
-        
-    def evolve_model(self, time):
-        while self.model_time < time:
-            self.update_pos()
-            self.model_time += self.timestep
-
 
